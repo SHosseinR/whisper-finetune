@@ -1,15 +1,14 @@
 python3 train/fine-tune_on_hf_dataset.py \
-  --model_name openai/whisper-tiny \
+  --model_name openai/whisper-small \
   --language Persian \
   --sampling_rate 16000 \
   --num_proc 4 \
   --train_strategy epoch \
   --learning_rate 3e-3 \
   --warmup 1000 \
-  --train_batchsize 4 \
-  --eval_batchsize 4 \
+  --train_batchsize 16 \
+  --eval_batchsize 16 \
   --num_epochs 20 \
-  --eval_steps 1000 \
   --resume_from_ckpt None \
   --output_dir op_dir_epoch_steps \
   --train_datasets mozilla-foundation/common_voice_17_0 mozilla-foundation/common_voice_17_0 \

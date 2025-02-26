@@ -95,6 +95,13 @@ parser.add_argument(
     help='Number of steps to train for.'
 )
 parser.add_argument(
+    '--eval_steps', 
+    type=int, 
+    required=False, 
+    default=100, 
+    help='Number of steps to evaluate at.'
+)
+parser.add_argument(
     '--resume_from_ckpt', 
     type=str, 
     required=False, 
@@ -372,9 +379,11 @@ if args.train_strategy == 'epoch':
         warmup_steps=args.warmup,
         gradient_checkpointing=gradient_checkpointing,
         fp16=True,
-        evaluation_strategy="epoch",
-        save_strategy="epoch",
-        num_train_epochs=args.num_epochs,
+        evaluation_strategy="steps",         # changed from "epoch" to "steps"
+        eval_steps=args.eval_steps,          # evaluation every N steps
+        save_strategy="steps",               # saving every N steps
+        save_steps=args.eval_steps,          # you can use the same interval for saving
+        num_train_epochs=args.num_epochs,    # training is still organized into epochs
         save_total_limit=10,
         per_device_eval_batch_size=args.eval_batchsize,
         predict_with_generate=True,

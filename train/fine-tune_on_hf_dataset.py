@@ -290,8 +290,12 @@ def prepare_dataset(batch):
 max_label_length = model.config.max_length
 min_input_length = 0.0
 max_input_length = 30.0
-def is_in_length_range(example):
-    return (min_input_length < example["input_length"] < max_input_length) and (0 < len(example["labels"]) < max_label_length)
+def is_in_length_range(batch):
+    # batch["input_length"] is a list of floats and batch["labels"] is a list of lists
+    return [
+        (min_input_length < length < max_input_length) and (0 < len(labels) < max_label_length)
+        for length, labels in zip(batch["input_length"], batch["labels"])
+    ]
 
 print('DATASET PREPARATION IN PROGRESS...')
 raw_dataset = DatasetDict()
@@ -308,6 +312,8 @@ raw_dataset = raw_dataset.map(
 
 raw_dataset = raw_dataset.filter(
     is_in_length_range,
+    batched=True, 
+    batch_size=32, 
     num_proc=args.num_proc,
 )
 

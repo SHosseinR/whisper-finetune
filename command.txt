@@ -1,0 +1,21 @@
+python3 train/fine-tune_on_hf_dataset.py \
+--model_name openai/whisper-tiny \
+--language Persian \
+--sampling_rate 16000 \
+--num_proc 4 \
+--train_strategy steps \
+--learning_rate 3e-3 \
+--warmup 1000 \
+--train_batchsize 4 \
+--eval_batchsize 4 \
+--num_steps 10000 \
+--resume_from_ckpt None \
+--output_dir op_dir_steps \
+--train_datasets mozilla-foundation/common_voice_17_0 mozilla-foundation/common_voice_17_0 \
+--train_dataset_configs fa fa \
+--train_dataset_splits train validation \
+--train_dataset_text_columns sentence sentence \
+--eval_datasets mozilla-foundation/common_voice_17_0 \
+--eval_dataset_configs fa \
+--eval_dataset_splits test \
+--eval_dataset_text_columns sentence

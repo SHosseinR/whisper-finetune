@@ -9,7 +9,6 @@ python3 train/fine-tune_on_hf_dataset.py \
   --train_batchsize 16 \
   --eval_batchsize 16 \
   --num_epochs 10 \
-  --eval_steps 400 \
   --resume_from_ckpt None \
   --output_dir op_dir_epoch_steps \
   --train_datasets mozilla-foundation/common_voice_17_0 mozilla-foundation/common_voice_17_0 \

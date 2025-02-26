@@ -379,11 +379,9 @@ if args.train_strategy == 'epoch':
         warmup_steps=args.warmup,
         gradient_checkpointing=gradient_checkpointing,
         fp16=True,
-        evaluation_strategy="steps",         # changed from "epoch" to "steps"
-        eval_steps=args.eval_steps,          # evaluation every N steps
-        save_strategy="steps",               # saving every N steps
-        save_steps=args.eval_steps,          # you can use the same interval for saving
-        num_train_epochs=args.num_epochs,    # training is still organized into epochs
+        evaluation_strategy="epoch",
+        save_strategy="epoch",
+        num_train_epochs=args.num_epochs,
         save_total_limit=10,
         per_device_eval_batch_size=args.eval_batchsize,
         predict_with_generate=True,

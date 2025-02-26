@@ -5,7 +5,14 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Union
 from datasets import DatasetDict, Audio, load_dataset, concatenate_datasets
 from transformers.models.whisper.english_normalizer import BasicTextNormalizer
-from transformers import WhisperFeatureExtractor, WhisperTokenizer, WhisperProcessor, WhisperForConditionalGeneration, Seq2SeqTrainingArguments, Seq2SeqTrainer
+from transformers import (
+    WhisperFeatureExtractor, 
+    WhisperTokenizer, 
+    WhisperProcessor, 
+    WhisperForConditionalGeneration, 
+    Seq2SeqTrainingArguments, 
+    Seq2SeqTrainer
+)
 
 #######################     ARGUMENT PARSING        #########################
 
@@ -205,7 +212,6 @@ do_lower_case = False
 do_remove_punctuation = False
 normalizer = BasicTextNormalizer()
 
-
 #############################       MODEL LOADING       #####################################
 
 feature_extractor = WhisperFeatureExtractor.from_pretrained(args.model_name)
@@ -223,13 +229,11 @@ if freeze_encoder:
     model.freeze_encoder()
     model.model.encoder.gradient_checkpointing = False
 
-
 model.config.forced_decoder_ids = None
 model.config.suppress_tokens = []
 
 if gradient_checkpointing:
     model.config.use_cache = False
-
 
 ############################        DATASET LOADING AND PREP        ##########################
 
@@ -256,45 +260,56 @@ def load_all_datasets(split):
     ds_to_return = ds_to_return.shuffle(seed=22)
     return ds_to_return
 
+# --- NEW: Batched prepare_dataset function ---
 def prepare_dataset(batch):
-    # load and (possibly) resample audio data to 16kHz
-    audio = batch["audio"]
+    # Extract audio arrays and assume all samples in the batch share the same sampling rate
+    arrays = [audio_item["array"] for audio_item in batch["audio"]]
+    sampling_rates = [audio_item["sampling_rate"] for audio_item in batch["audio"]]
+    sample_rate = sampling_rates[0]  # all audios are cast to args.sampling_rate
 
-    # compute log-Mel input features from input audio array 
-    batch["input_features"] = processor.feature_extractor(audio["array"], sampling_rate=audio["sampling_rate"]).input_features[0]
-    # compute input length of audio sample in seconds
-    batch["input_length"] = len(audio["array"]) / audio["sampling_rate"]
-    
-    # optional pre-processing steps
-    transcription = batch["sentence"]
+    # Compute log-Mel input features for the batch of audio arrays
+    features = processor.feature_extractor(arrays, sampling_rate=sample_rate)
+    batch["input_features"] = features.input_features
+
+    # Compute input lengths in seconds for each audio sample
+    batch["input_length"] = [len(array) / sample_rate for array in arrays]
+
+    # Process transcriptions in batch
+    transcriptions = batch["sentence"]
     if do_lower_case:
-        transcription = transcription.lower()
+        transcriptions = [t.lower() for t in transcriptions]
     if do_remove_punctuation:
-        transcription = normalizer(transcription).strip()
-    
-    # encode target text to label ids
-    batch["labels"] = processor.tokenizer(transcription).input_ids
+        transcriptions = [normalizer(t).strip() for t in transcriptions]
+
+    # Encode target text to label ids for the batch
+    tokenized = processor.tokenizer(transcriptions)
+    batch["labels"] = tokenized.input_ids
+
     return batch
 
 max_label_length = model.config.max_length
 min_input_length = 0.0
 max_input_length = 30.0
-def is_in_length_range(length, labels):
-    return min_input_length < length < max_input_length and 0 < len(labels) < max_label_length
-
+def is_in_length_range(example):
+    return (min_input_length < example["input_length"] < max_input_length) and (0 < len(example["labels"]) < max_label_length)
 
 print('DATASET PREPARATION IN PROGRESS...')
 raw_dataset = DatasetDict()
 raw_dataset["train"] = load_all_datasets('train')
 raw_dataset["eval"] = load_all_datasets('eval')
 
-raw_dataset = raw_dataset.map(prepare_dataset, num_proc=args.num_proc)
+# --- NEW: Process the dataset in batches to limit memory usage ---
+raw_dataset = raw_dataset.map(
+    prepare_dataset, 
+    batched=True, 
+    batch_size=32,  # adjust batch size as needed
+    num_proc=args.num_proc
+)
 
 raw_dataset = raw_dataset.filter(
     is_in_length_range,
-    input_columns=["input_length", "labels"],
     num_proc=args.num_proc,
-) 
+)
 
 ###############################     DATA COLLATOR AND METRIC DEFINITION     ########################
 
@@ -303,41 +318,33 @@ class DataCollatorSpeechSeq2SeqWithPadding:
     processor: Any
 
     def __call__(self, features: List[Dict[str, Union[List[int], torch.Tensor]]]) -> Dict[str, torch.Tensor]:
-        # split inputs and labels since they have to be of different lengths and need different padding methods
-        # first treat the audio inputs by simply returning torch tensors
+        # Process audio inputs: simply pad the input features to a batch tensor
         input_features = [{"input_features": feature["input_features"]} for feature in features]
         batch = self.processor.feature_extractor.pad(input_features, return_tensors="pt")
 
-        # get the tokenized label sequences
+        # Process label sequences and pad them
         label_features = [{"input_ids": feature["labels"]} for feature in features]
-        # pad the labels to max length
         labels_batch = self.processor.tokenizer.pad(label_features, return_tensors="pt")
-
-        # replace padding with -100 to ignore loss correctly
         labels = labels_batch["input_ids"].masked_fill(labels_batch.attention_mask.ne(1), -100)
 
-        # if bos token is appended in previous tokenization step,
-        # cut bos token here as it's append later anyways
+        # Optionally remove an initial bos token if present
         if (labels[:, 0] == self.processor.tokenizer.bos_token_id).all().cpu().item():
             labels = labels[:, 1:]
 
         batch["labels"] = labels
-
         return batch
 
 data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
 print('DATASET PREPARATION COMPLETED')
-
 
 metric = evaluate.load("wer")
 def compute_metrics(pred):
     pred_ids = pred.predictions
     label_ids = pred.label_ids
 
-    # replace -100 with the pad_token_id
+    # Replace -100 with the pad token id so that the tokenizer can decode properly
     label_ids[label_ids == -100] = processor.tokenizer.pad_token_id
 
-    # we do not want to group tokens when computing the metrics
     pred_str = processor.tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
     label_str = processor.tokenizer.batch_decode(label_ids, skip_special_tokens=True)
 
@@ -345,9 +352,8 @@ def compute_metrics(pred):
         pred_str = [normalizer(pred) for pred in pred_str]
         label_str = [normalizer(label) for label in label_str]
 
-    wer = 100 * metric.compute(predictions=pred_str, references=label_str)
-    return {"wer": wer}
-
+    wer_score = 100 * metric.compute(predictions=pred_str, references=label_str)
+    return {"wer": wer_score}
 
 ###############################     TRAINING ARGS AND TRAINING      ############################
 
@@ -375,7 +381,6 @@ if args.train_strategy == 'epoch':
         optim="adamw_bnb_8bit",
         resume_from_checkpoint=args.resume_from_ckpt,
     )
-
 elif args.train_strategy == 'steps':
     training_args = Seq2SeqTrainingArguments(
         output_dir=args.output_dir,

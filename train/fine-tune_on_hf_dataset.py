@@ -179,6 +179,10 @@ parser.add_argument(
     default=[], 
     help="Text column name of each evaluation dataset. Eg. 'transcription' for Google Fleurs",
 )
+parser.add_argument(
+    '--testmode',
+    action='store_true'
+)
 
 args = parser.parse_args()
 
@@ -308,6 +312,13 @@ print('DATASET PREPARATION IN PROGRESS...')
 raw_dataset = DatasetDict()
 raw_dataset["train"] = load_all_datasets('train')
 raw_dataset["eval"] = load_all_datasets('eval')
+
+if args.testmode:
+    raw_dataset = DatasetDict({
+        "train": raw_dataset["train"].select(range(10)),  # Select first 10 rows from train
+        "test": raw_dataset["test"].select(range(10))     # Select first 10 rows from test
+    })
+
 
 # --- NEW: Process the dataset in batches to limit memory usage ---
 raw_dataset = raw_dataset.map(

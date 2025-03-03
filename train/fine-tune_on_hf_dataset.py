@@ -91,7 +91,7 @@ parser.add_argument(
     '--num_epochs', 
     type=int, 
     required=False, 
-    default=20, 
+    default=None, 
     help='Number of epochs to train for.'
 )
 parser.add_argument(
@@ -412,6 +412,7 @@ if args.train_strategy == 'epoch':
         resume_from_checkpoint=args.resume_from_ckpt,
     )
 elif args.train_strategy == 'steps':
+    step_epoch_args = {"num_train_epochs": args.num_epochs} if args.num_epochs is not None else {"max_steps": args.num_steps}
     training_args = Seq2SeqTrainingArguments(
         output_dir=args.output_dir,
         per_device_train_batch_size=args.train_batchsize,
@@ -424,7 +425,7 @@ elif args.train_strategy == 'steps':
         eval_steps=1000,
         save_strategy="steps",
         save_steps=1000,
-        max_steps=args.num_steps,
+        # max_steps=args.num_steps,
         save_total_limit=10,
         per_device_eval_batch_size=args.eval_batchsize,
         predict_with_generate=True,
@@ -436,6 +437,7 @@ elif args.train_strategy == 'steps':
         greater_is_better=False,
         optim="adamw_bnb_8bit",
         resume_from_checkpoint=args.resume_from_ckpt,
+        **step_epoch_args
     )
 
 trainer = Seq2SeqTrainer(

@@ -3,12 +3,13 @@ python3 train/fine-tune_on_hf_dataset.py \
   --language fa \
   --sampling_rate 16000 \
   --num_proc 1 \
-  --train_strategy epoch \
+  --train_strategy steps \
   --learning_rate 5e-4 \
   --warmup 1000 \
   --train_batchsize 1 \
   --eval_batchsize 1 \
-  --num_epochs 10 \
+  --grad_acc 32  \
+  --num_steps 100000 \
   --resume_from_ckpt None \
   --output_dir op_dir_epoch_steps \
   --train_datasets mozilla-foundation/common_voice_17_0 mozilla-foundation/common_voice_17_0 \

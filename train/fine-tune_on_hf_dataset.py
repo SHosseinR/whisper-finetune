@@ -81,6 +81,13 @@ parser.add_argument(
     help='Batch size during the evaluation phase.'
 )
 parser.add_argument(
+    '--grad_acc', 
+    type=int, 
+    required=False, 
+    default=1, 
+    help='Batch size during the evaluation phase.'
+)
+parser.add_argument(
     '--num_epochs', 
     type=int, 
     required=False, 
@@ -279,21 +286,19 @@ def prepare_dataset(batch):
     sample_rate = sampling_rates[0]  # all audios are cast to args.sampling_rate
 
     # Compute log-Mel input features for the batch of audio arrays
-    features = processor.feature_extractor(arrays, sampling_rate=sample_rate)
+    features = feature_extractor(arrays, sampling_rate=sample_rate)
     batch["input_features"] = features.input_features
 
     # Compute input lengths in seconds for each audio sample
     batch["input_length"] = [len(array) / sample_rate for array in arrays]
-
     # Process transcriptions in batch
     transcriptions = batch["sentence"]
     if do_lower_case:
         transcriptions = [t.lower() for t in transcriptions]
     if do_remove_punctuation:
         transcriptions = [normalizer(t).strip() for t in transcriptions]
-
     # Encode target text to label ids for the batch
-    tokenized = processor.tokenizer(transcriptions)
+    tokenized = tokenizer(transcriptions)
     batch["labels"] = tokenized.input_ids
 
     return batch
@@ -316,22 +321,23 @@ raw_dataset["eval"] = load_all_datasets('eval')
 if args.testmode:
     raw_dataset = DatasetDict({
         "train": raw_dataset["train"].select(range(10)),  # Select first 10 rows from train
-        "test": raw_dataset["test"].select(range(10))     # Select first 10 rows from test
+        "eval": raw_dataset["eval"].select(range(10))     # Select first 10 rows from test
     })
 
 
 # --- NEW: Process the dataset in batches to limit memory usage ---
+print(f'{raw_dataset=}')
 raw_dataset = raw_dataset.map(
     prepare_dataset, 
     batched=True, 
-    batch_size=32,  # adjust batch size as needed
+    batch_size=2,  # adjust batch size as needed
     num_proc=args.num_proc
 )
-
+print(f'map done. {raw_dataset=}')
 raw_dataset = raw_dataset.filter(
     is_in_length_range,
     batched=True, 
-    batch_size=32, 
+    batch_size=2, 
     num_proc=args.num_proc,
 )
 
@@ -409,7 +415,7 @@ elif args.train_strategy == 'steps':
     training_args = Seq2SeqTrainingArguments(
         output_dir=args.output_dir,
         per_device_train_batch_size=args.train_batchsize,
-        gradient_accumulation_steps=1,
+        gradient_accumulation_steps=args.grad_acc,
         learning_rate=args.learning_rate,
         warmup_steps=args.warmup,
         gradient_checkpointing=gradient_checkpointing,

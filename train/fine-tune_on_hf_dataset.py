@@ -410,6 +410,7 @@ if args.train_strategy == 'epoch':
         greater_is_better=False,
         optim="adamw_bnb_8bit",
         resume_from_checkpoint=args.resume_from_ckpt,
+        push_to_hub=True,
     )
 elif args.train_strategy == 'steps':
     step_epoch_args = {"num_train_epochs": args.num_epochs} if args.num_epochs is not None else {"max_steps": args.num_steps}
@@ -455,3 +456,17 @@ processor.save_pretrained(training_args.output_dir)
 print('TRAINING IN PROGRESS...')
 trainer.train()
 print('DONE TRAINING')
+
+
+kwargs = {
+    "dataset_tags": "mozilla-foundation/common_voice_17_0",
+    "dataset": "Common Voice 17.0",  # a 'pretty' name for the training dataset
+    "dataset_args": "config: fa, split: test",
+    "language": "fa",
+    "model_name": "Whisper Large fa - Mobin Tadbir Sharif",  # a 'pretty' name for your model
+    "finetuned_from": "openai/whisper-small",
+    "tasks": "automatic-speech-recognition",
+}
+
+trainer.push_to_hub(**kwargs)
+

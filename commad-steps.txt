@@ -1,5 +1,5 @@
 python3 train/fine-tune_on_hf_dataset.py \
-  --model_name openai/whisper-large-v3 \
+  --model_name openai/whisper-small \
   --language fa \
   --sampling_rate 16000 \
   --num_proc 1 \
@@ -11,11 +11,11 @@ python3 train/fine-tune_on_hf_dataset.py \
   --grad_acc 32  \
   --num_epochs 10 \
   --resume_from_ckpt None \
-  --output_dir op_dir_epoch_steps \
-  --train_datasets mozilla-foundation/common_voice_17_0 mozilla-foundation/common_voice_17_0 \
-  --train_dataset_configs fa fa \
-  --train_dataset_splits train validation \
-  --train_dataset_text_columns sentence sentence \
+  --output_dir op_dir_small_steps \
+  --train_datasets mozilla-foundation/common_voice_17_0 mozilla-foundation/common_voice_17_0 mozilla-foundation/common_voice_17_0 \
+  --train_dataset_configs fa fa fa\
+  --train_dataset_splits train validation validated \
+  --train_dataset_text_columns sentence sentence sentence \
   --eval_datasets mozilla-foundation/common_voice_17_0 \
   --eval_dataset_configs fa \
   --eval_dataset_splits test \

@@ -1,0 +1,7 @@
+python3 transcribe_audio.py \
+--is_public_repo False \
+--ckpt_dir "op_dir_epoch_steps/checkpoint-12320" \
+--temp_ckpt_folder "temp" \
+--path_to_audio ~/openai-whisper-docker/audio-files/ref.wav \
+--language fa \
+--device 0
